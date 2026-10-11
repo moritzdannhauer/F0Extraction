@@ -18,8 +18,7 @@ voice_max_freq = 400  # Maximum frequency for both genders
 frame_length = 2048  # Frame length for pitch analysis
 hop_length = int(0.01 * 44100)  # Match Praat's timing (10 ms)
 
-# Define fixed percentage bins (this fixes errors with double values for same bin as well as
-# making sure to include 100% bin)
+# Define fixed percentage bins
 fixed_percentage_bins = np.arange(0, 100, bin_percentage)
 
 def process_audio(file_path):
