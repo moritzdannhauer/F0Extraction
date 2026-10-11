@@ -17,11 +17,9 @@ voice_min_freq = 75  # Minimum male voice frequency
 voice_max_freq = 300  # Maximum male voice frequency
 frame_length = 2048  # Frame length for pitch analysis
 hop_length = int(0.01 * 44100)  # Match Praat's timing (10 ms)
-bias_correction = 4  # Adjustment to align pitches with Praats analysis
 
-# Define fixed percentage bins (this fixes errors with double values for same bin as well as
-# making sure to include 100% bin)
-fixed_percentage_bins = np.append(np.arange(0, 100, bin_percentage), 100)
+# Define fixed percentage bins
+fixed_percentage_bins = np.arange(0, 100, bin_percentage)
 
 def process_audio(file_path):
     """Extracts pitch data from an audio file and returns a DataFrame with percentage-based bins."""
@@ -52,7 +50,7 @@ def process_audio(file_path):
                 valid_pitches = gaussian_filter1d(valid_pitches, sigma=0.1)  # Smooth data filters out any backgroud minor noises
 
                 if len(valid_pitches) > 0:
-                    avg_bin_freq = np.median(valid_pitches) + bias_correction
+                    avg_bin_freq = np.median(valid_pitches)
                     pitch_data['Percentage'].append(actual_percent)
                     pitch_data['Average_Frequency'].append(avg_bin_freq)
                 else:
