@@ -1,4 +1,4 @@
-# PitchExtraction
+# F0Extraction
 
 This is the repository for the manuscript entitled:
 
