@@ -14,9 +14,12 @@ from openpyxl.utils.dataframe import dataframe_to_rows
 
 # Parameters
 # THE folder_path NEECS TO ADJUSTED TO THE MALE WAV FILES FOLDER
-folder_path = "/path/that/needs/to/be/updated/" 
+#folder_path = "/path/that/needs/to/be/updated/" 
 # THE output_excel_path  NEECS TO ADJUSTED TO THE MALE WAV FILES FOLDER
-output_excel_path = "/path/that/needs/to/be/updated/F0_Results_Male_New.xlsx"
+#output_excel_path = "/path/that/needs/to/be/updated/F0_Results_Male.xlsx"
+
+folder_path = "/Users/rothermichk17/Desktop/MFA_wavs_Oct2026/male/"
+output_excel_path = "/Users/rothermichk17/Desktop/MFA_wavs_Oct2026/male/F0_Results_Male.xlsx"
 
 bin_percentage = 20    # 20% bins
 voice_min_freq = 75    # Minimum male voice frequency (Hz)
@@ -124,11 +127,11 @@ base_path = os.path.splitext(output_excel_path)[0]
 
 # High-resolution TIFF for publication (LZW compression keeps the file size down)
 tiff_path = base_path + "_chart.tif"
-fig.savefig(tiff_path, dpi=330, format="tiff", pil_kwargs={"compression": "tiff_lzw"})
+fig.savefig(tiff_path, dpi=300, format="tiff", pil_kwargs={"compression": "tiff_lzw"})
 print(f"Chart saved to {tiff_path}")
 
 # Place the chart two columns right of the data so it doesn't cover it
-ws.add_image(Image(chart_path), f"{get_column_letter(final_df.shape[1] + 2)}2")
+ws.add_image(Image(tiff_path), f"{get_column_letter(final_df.shape[1] + 2)}2")
 
 wb.save(output_excel_path)
 print(f"Results saved to {output_excel_path}")
