@@ -13,9 +13,9 @@ from openpyxl.utils import get_column_letter
 from openpyxl.utils.dataframe import dataframe_to_rows
 
 # Parameters
-# THE folder_path NEECS TO ADJUSTED TO THE MALE WAV FILES FOLDER
+# THE folder_path NEEDS TO ADJUSTED TO THE MALE WAV FILES FOLDER
 #folder_path = "/path/that/needs/to/be/updated/" 
-# THE output_excel_path  NEECS TO ADJUSTED TO THE MALE WAV FILES FOLDER
+# THE output_excel_path  NEEDS TO ADJUSTED TO THE MALE WAV FILES FOLDER
 #output_excel_path = "/path/that/needs/to/be/updated/F0_Results_Male.xlsx"
 
 folder_path = "/Users/rothermichk17/Desktop/MFA_wavs_Oct2026/male/"
