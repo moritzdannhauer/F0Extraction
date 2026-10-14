@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+#author: rothermichk17
 #Median F0 per 20% bin of each recording, plus H and L group averages.
 
 import os
@@ -12,14 +13,16 @@ from openpyxl.utils import get_column_letter
 from openpyxl.utils.dataframe import dataframe_to_rows
 
 # Parameters
-# THE folder_path NEECS TO ADJUSTED TO THE MALE WAV FILES FOLDER
-folder_path = "/path/that/needs/to/be/updated/"
-# THE output_excel_path  NEECS TO ADJUSTED TO THE MALE WAV FILES FOLDER
-output_excel_path = "/path/that/needs/to/be/updated/F0_Results_Male_New.xlsx"
+# THE folder_path NEEDS TO ADJUSTED TO THE FEMALE WAV FILES FOLDER
+folder_path = "/path/that/needs/to/be/updated/" 
+# THE output_excel_path  NEEDS TO ADJUSTED TO THE FEMALE WAV FILES FOLDER
+output_excel_path = "/path/that/needs/to/be/updated/F0_Results_Male.xlsx"
+
+
 
 bin_percentage = 20    # 20% bins
-voice_min_freq = 150   # Minimum female voice frequency (Hz)
-voice_max_freq = 400   # Maximum female voice frequency (Hz)
+voice_min_freq = 75    # Minimum male voice frequency (Hz)
+voice_max_freq = 300   # Maximum male voice frequency (Hz)
 frame_length = 2048    # Frame length for pitch analysis (samples)
 hop_seconds = 0.01     # 10 ms step, like Praat; converted to samples per file
 
@@ -123,16 +126,11 @@ base_path = os.path.splitext(output_excel_path)[0]
 
 # High-resolution TIFF for publication (LZW compression keeps the file size down)
 tiff_path = base_path + "_chart.tif"
-fig.savefig(tiff_path, dpi=330, format="tiff", pil_kwargs={"compression": "tiff_lzw"})
+fig.savefig(tiff_path, dpi=300, format="tiff", pil_kwargs={"compression": "tiff_lzw"})
 print(f"Chart saved to {tiff_path}")
 
-# PNG copy for embedding in Excel (Excel doesn't display TIFF reliably)
-chart_path = base_path + "_chart.png"
-fig.savefig(chart_path, dpi=100)
-plt.close(fig)
-
 # Place the chart two columns right of the data so it doesn't cover it
-ws.add_image(Image(chart_path), f"{get_column_letter(final_df.shape[1] + 2)}2")
+ws.add_image(Image(tiff_path), f"{get_column_letter(final_df.shape[1] + 2)}2")
 
 wb.save(output_excel_path)
 print(f"Results saved to {output_excel_path}")
