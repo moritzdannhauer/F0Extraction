@@ -1,128 +1,134 @@
+#!/usr/bin/env python3
+#author: rothermichk17
+#Median F0 per 20% bin of each recording, plus H and L group averages.
+
 import os
 import numpy as np
 import pandas as pd
 import librosa
-from scipy.ndimage import gaussian_filter1d
 import matplotlib.pyplot as plt
 from openpyxl import Workbook
 from openpyxl.drawing.image import Image
+from openpyxl.utils import get_column_letter
 from openpyxl.utils.dataframe import dataframe_to_rows
 
 # Parameters
-folder_path = input("Enter the folder path containing .wav files: ")
-output_excel_path = input("Enter the output Excel file path (e.g., results.xlsx): ")
+# THE folder_path NEECS TO ADJUSTED TO THE MALE WAV FILES FOLDER
+folder_path = "/path/that/needs/to/be/updated/" 
+# THE output_excel_path  NEECS TO ADJUSTED TO THE MALE WAV FILES FOLDER
+output_excel_path = "/path/that/needs/to/be/updated/F0_Results_Male_New.xlsx"
 
-bin_percentage = 20  # 20% bins
-voice_min_freq = 75  # Minimum male voice frequency
-voice_max_freq = 300  # Maximum male voice frequency
-frame_length = 2048  # Frame length for pitch analysis
-hop_length = int(0.01 * 44100)  # Match Praat's timing (10 ms)
+bin_percentage = 20    # 20% bins
+voice_min_freq = 75    # Minimum male voice frequency (Hz)
+voice_max_freq = 300   # Maximum male voice frequency (Hz)
+frame_length = 2048    # Frame length for pitch analysis (samples)
+hop_seconds = 0.01     # 10 ms step, like Praat; converted to samples per file
 
-# Define fixed percentage bins
+# Bin labels are the bin start: 0 = 0-20%, 20 = 20-40%, ... 80 = 80-100%
 fixed_percentage_bins = np.arange(0, 100, bin_percentage)
 
+
 def process_audio(file_path):
-    """Extracts pitch data from an audio file and returns a DataFrame with percentage-based bins."""
+    """Return a Series of median F0 (Hz) per percentage bin of the recording."""
     print(f"Processing file: {file_path}")
     y, sr = librosa.load(file_path, sr=None)
-    total_duration = len(y) / sr  # Calculate total duration in seconds
+    hop_length = int(round(hop_seconds * sr))   # 10 ms at this file's sample rate
+    total_duration = len(y) / sr
 
-    pitch_data = {'Percentage': [], 'Average_Frequency': []}
+    # Run pYIN once on the whole file (avoids edge effects at bin boundaries).
+    # f0 is NaN wherever pYIN judges the frame unvoiced.
+    f0, voiced_flag, voiced_prob = librosa.pyin(
+        y, fmin=voice_min_freq, fmax=voice_max_freq, sr=sr,
+        frame_length=frame_length, hop_length=hop_length,
+    )
 
-    for percent in fixed_percentage_bins:
-        actual_percent = percent  # Helps percetange label
+    # Position of each frame as a percentage of the recording
+    frame_percent = librosa.times_like(f0, sr=sr, hop_length=hop_length) / total_duration * 100
 
-        start_time = (percent / 100) * total_duration
-        end_time = ((percent + bin_percentage) / 100) * total_duration if percent < 100 else total_duration
+    medians = []
+    for start in fixed_percentage_bins:
+        end = start + bin_percentage
+        if end < 100:
+            in_bin = (frame_percent >= start) & (frame_percent < end)
+        else:
+            in_bin = frame_percent >= start   # last bin runs to the end of the file
+        values = f0[in_bin & ~np.isnan(f0)]
+        if values.size > 0:
+            medians.append(np.median(values))
+        else:
+            print(f"  No voiced frames in bin {start}%; left empty")
+            medians.append(np.nan)
 
-        start_sample = int(start_time * sr)
-        end_sample = int(end_time * sr)
-        bin_samples = y[start_sample:end_sample]
+    return pd.Series(medians, index=fixed_percentage_bins)
 
-        try:
-            pitches = librosa.pyin(bin_samples, fmin=voice_min_freq, fmax=voice_max_freq,
-                                   frame_length=frame_length, hop_length=hop_length, sr=sr)
-            
-            if pitches is not None:
-                pitches = np.array(pitches)
-                valid_pitches = pitches[~np.isnan(pitches)]
-                valid_pitches = valid_pitches[(valid_pitches >= voice_min_freq) & (valid_pitches <= voice_max_freq)]
-                valid_pitches = gaussian_filter1d(valid_pitches, sigma=0.1)  # Smooth data filters out any backgroud minor noises
 
-                if len(valid_pitches) > 0:
-                    avg_bin_freq = np.median(valid_pitches)
-                    pitch_data['Percentage'].append(actual_percent)
-                    pitch_data['Average_Frequency'].append(avg_bin_freq)
-                else:
-                    # If 100% has no valid data, use the previous valid value
-                    pitch_data['Percentage'].append(actual_percent)
-                    pitch_data['Average_Frequency'].append(pitch_data['Average_Frequency'][-1] if pitch_data['Average_Frequency'] else np.nan)
-            else:
-                pitch_data['Percentage'].append(actual_percent)
-                pitch_data['Average_Frequency'].append(np.nan)
-
-        except Exception as e:
-            print(f"Error processing bin at {actual_percent}%: {e}")
-            pitch_data['Percentage'].append(actual_percent)
-            pitch_data['Average_Frequency'].append(np.nan)
-
-    return pd.DataFrame(pitch_data)
-
-# Process all subjects
-all_files = [f for f in os.listdir(folder_path) if f.endswith('.wav')]
+# Group files by subject. Expected names like P_16_H.wav / P_02_L.wav:
+# the condition is a separate "H" or "L" part, the subject ID is the rest.
 subject_files = {}
+for file in sorted(os.listdir(folder_path)):
+    stem, ext = os.path.splitext(file)
+    if ext.lower() != ".wav":
+        continue
+    parts = stem.split("_")
+    if "H" in parts:
+        condition = "H"
+    elif "L" in parts:
+        condition = "L"
+    else:
+        print(f"Skipping (no _H or _L in name): {file}")
+        continue
+    subject_id = "_".join(p for p in parts if p not in ("H", "L"))
+    subject_files.setdefault(subject_id, {})[condition] = file
 
-for file in all_files:
-    subject_id = "_".join(file.split("_")[:2])
-    if subject_id not in subject_files:
-        subject_files[subject_id] = {"H": None, "L": None}
-    if "_H" in file:
-        subject_files[subject_id]["H"] = file
-    elif "_L" in file:
-        subject_files[subject_id]["L"] = file
+print(f"Found {len(subject_files)} subjects:")
+for subject_id, files in sorted(subject_files.items()):
+    print(f"  {subject_id}: H = {files.get('H')}, L = {files.get('L')}")
 
-combined_h_df = pd.DataFrame(index=fixed_percentage_bins)
-combined_l_df = pd.DataFrame(index=fixed_percentage_bins)
-all_data = {}
+# Analyze every file
+results = {}
+for subject_id, files in sorted(subject_files.items()):
+    for condition in ("H", "L"):
+        if condition in files:
+            results[f"{subject_id}_{condition}"] = process_audio(
+                os.path.join(folder_path, files[condition]))
 
-for subject_id, files in subject_files.items():
-    h_file = files["H"]
-    l_file = files["L"]
+final_df = pd.DataFrame(results, index=fixed_percentage_bins)
+h_columns = [c for c in results if c.endswith("_H")]
+l_columns = [c for c in results if c.endswith("_L")]
+final_df["H_Avg"] = final_df[h_columns].mean(axis=1)   # NaN bins are skipped
+final_df["L_Avg"] = final_df[l_columns].mean(axis=1)
+final_df["H_N"] = final_df[h_columns].notna().sum(axis=1)  # subjects per bin
+final_df["L_N"] = final_df[l_columns].notna().sum(axis=1)
+final_df.index.name = "Percentage"
+final_df = final_df.reset_index()
 
-    h_data = process_audio(os.path.join(folder_path, h_file)) if h_file else None
-    l_data = process_audio(os.path.join(folder_path, l_file)) if l_file else None
-
-    if h_data is not None:
-        h_data = h_data.set_index("Percentage").reindex(fixed_percentage_bins, fill_value=np.nan)
-        all_data[f"{subject_id}_H"] = h_data["Average_Frequency"]
-        combined_h_df = pd.concat([combined_h_df, h_data], axis=1)
-
-    if l_data is not None:
-        l_data = l_data.set_index("Percentage").reindex(fixed_percentage_bins, fill_value=np.nan)
-        all_data[f"{subject_id}_L"] = l_data["Average_Frequency"]
-        combined_l_df = pd.concat([combined_l_df, l_data], axis=1)
-
-average_h = combined_h_df.mean(axis=1).rename("H_Avg")
-average_l = combined_l_df.mean(axis=1).rename("L_Avg")
-
-all_data["H_Avg"] = average_h
-all_data["L_Avg"] = average_l
-final_df = pd.DataFrame(all_data)
-final_df.reset_index(inplace=True)
-final_df.rename(columns={"index": "Percentage"}, inplace=True)
-
+# Write to Excel (NaN -> empty cell, since Excel can't store NaN)
 wb = Workbook()
 ws = wb.active
 ws.title = "All Data"
-
-for row in dataframe_to_rows(final_df, index=False, header=True):
+excel_df = final_df.astype(object).where(final_df.notna(), None)
+for row in dataframe_to_rows(excel_df, index=False, header=True):
     ws.append(row)
 
-# Ensure chart is included in the file
-plt.plot(average_h.index, average_h.values, label="H", marker='o', color='red')
-plt.plot(average_l.index, average_l.values, label="L", marker='o', color='blue')
-plt.savefig("group_chart.png")
-ws.add_image(Image("group_chart.png"), "C10")
+# Group chart, in its own figure so earlier runs in the same session can't leak in
+fig, ax = plt.subplots(figsize=(7, 4))
+ax.plot(final_df["Percentage"], final_df["H_Avg"], label="H", marker="o", color="red")
+ax.plot(final_df["Percentage"], final_df["L_Avg"], label="L", marker="o", color="blue")
+ax.set_xlabel("Bin start (% of recording)")
+ax.set_ylabel("Median F0 (Hz)")
+ax.set_xticks(fixed_percentage_bins)
+ax.legend()
+fig.tight_layout()
+
+base_path = os.path.splitext(output_excel_path)[0]
+
+# High-resolution TIFF for publication (LZW compression keeps the file size down)
+tiff_path = base_path + "_chart.tif"
+fig.savefig(tiff_path, dpi=330, format="tiff", pil_kwargs={"compression": "tiff_lzw"})
+print(f"Chart saved to {tiff_path}")
+
+# Place the chart two columns right of the data so it doesn't cover it
+ws.add_image(Image(chart_path), f"{get_column_letter(final_df.shape[1] + 2)}2")
 
 wb.save(output_excel_path)
 print(f"Results saved to {output_excel_path}")
